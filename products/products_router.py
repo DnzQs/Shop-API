@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 import httpx
 
 from app.core.database import get_db
-from app.products.products_models import Product
-from app.products.products_schemas import ProductCreate, ProductResponse
+from app.products.models import Product
+from app.products.schemas import ProductCreate, ProductResponse
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -20,7 +20,7 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=list[ProductResponse])
 async def get_products(
-        currency: str = Query("USD", description="Валюта для отображения: USD, EUR или RUB"),
+        currency: str = Query("USD", description="Currency to display: USD, EUR, or RUB"),
         db: Session = Depends(get_db)
 ):
     products = db.query(Product).all()
@@ -28,7 +28,7 @@ async def get_products(
     if currency.upper() == "USD":
         return products
 
-    url = f"https://open.er-api.com/v6/latest/USD"
+    url = "https://open.er-api.com/v6/latest/USD"
 
     async with httpx.AsyncClient() as client:
         try:
@@ -36,13 +36,13 @@ async def get_products(
             response.raise_for_status()
             data = response.json()
         except (httpx.HTTPError, KeyError):
-            raise HTTPException(status_code=503, detail="Внешний сервис курсов валют недоступен")
+            raise HTTPException(status_code=503, detail="External currency service is unavailable")
 
     rates = data.get("rates", {})
     target_rate = rates.get(currency.upper())
 
     if not target_rate:
-        raise HTTPException(status_code=400, detail=f"Валюта {currency} не поддерживается")
+        raise HTTPException(status_code=400, detail=f"Currency '{currency}' is not supported")
 
     response_products = []
     for p in products:
